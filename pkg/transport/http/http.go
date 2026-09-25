@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/vimoksh/split-and-go/pkg/assembler"
-	"github.com/vimoksh/split-and-go/pkg/core"
-	"github.com/vimoksh/split-and-go/pkg/retry"
-	"github.com/vimoksh/split-and-go/pkg/splitter"
+	"github.com/vimoksh-5/split-and-go/pkg/assembler"
+	"github.com/vimoksh-5/split-and-go/pkg/core"
+	"github.com/vimoksh-5/split-and-go/pkg/retry"
+	"github.com/vimoksh-5/split-and-go/pkg/splitter"
 )
 
 // HTTP Header constants used by Split-and-Go

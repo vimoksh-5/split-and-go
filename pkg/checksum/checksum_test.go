@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/vimoksh/split-and-go/pkg/checksum"
-	"github.com/vimoksh/split-and-go/pkg/core"
+	"github.com/vimoksh-5/split-and-go/pkg/checksum"
+	"github.com/vimoksh-5/split-and-go/pkg/core"
 )
 
 func TestCRC32Hasher(t *testing.T) {

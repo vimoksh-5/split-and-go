@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vimoksh/split-and-go"
-	splitHttp "github.com/vimoksh/split-and-go/pkg/transport/http"
+	"github.com/vimoksh-5/split-and-go"
+	splitHttp "github.com/vimoksh-5/split-and-go/pkg/transport/http"
 )
 
 func main() {

@@ -1,4 +1,4 @@
-module github.com/vimoksh/split-and-go
+module github.com/vimoksh-5/split-and-go
 
 go 1.26.5
 

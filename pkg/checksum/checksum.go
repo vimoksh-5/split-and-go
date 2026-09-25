@@ -7,7 +7,7 @@ import (
 	"hash/crc32"
 	"sync"
 
-	"github.com/vimoksh/split-and-go/pkg/core"
+	"github.com/vimoksh-5/split-and-go/pkg/core"
 )
 
 // Castagnoli table for high-performance CRC32C (standard in cloud storage & enterprise networks)

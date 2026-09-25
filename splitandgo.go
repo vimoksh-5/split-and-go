@@ -15,15 +15,15 @@ import (
 	"context"
 	"io"
 
-	"github.com/vimoksh/split-and-go/pkg/assembler"
-	"github.com/vimoksh/split-and-go/pkg/checksum"
-	"github.com/vimoksh/split-and-go/pkg/compression"
-	"github.com/vimoksh/split-and-go/pkg/core"
-	"github.com/vimoksh/split-and-go/pkg/metrics"
-	"github.com/vimoksh/split-and-go/pkg/pool"
-	"github.com/vimoksh/split-and-go/pkg/record"
-	"github.com/vimoksh/split-and-go/pkg/retry"
-	"github.com/vimoksh/split-and-go/pkg/splitter"
+	"github.com/vimoksh-5/split-and-go/pkg/assembler"
+	"github.com/vimoksh-5/split-and-go/pkg/checksum"
+	"github.com/vimoksh-5/split-and-go/pkg/compression"
+	"github.com/vimoksh-5/split-and-go/pkg/core"
+	"github.com/vimoksh-5/split-and-go/pkg/metrics"
+	"github.com/vimoksh-5/split-and-go/pkg/pool"
+	"github.com/vimoksh-5/split-and-go/pkg/record"
+	"github.com/vimoksh-5/split-and-go/pkg/retry"
+	"github.com/vimoksh-5/split-and-go/pkg/splitter"
 )
 
 // Type aliases for seamless root package access

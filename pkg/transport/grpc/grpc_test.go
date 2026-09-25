@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vimoksh/split-and-go/pkg/core"
-	"github.com/vimoksh/split-and-go/pkg/splitter"
-	splitGrpc "github.com/vimoksh/split-and-go/pkg/transport/grpc"
-	"github.com/vimoksh/split-and-go/pkg/transport/grpc/pb"
+	"github.com/vimoksh-5/split-and-go/pkg/core"
+	"github.com/vimoksh-5/split-and-go/pkg/splitter"
+	splitGrpc "github.com/vimoksh-5/split-and-go/pkg/transport/grpc"
+	"github.com/vimoksh-5/split-and-go/pkg/transport/grpc/pb"
 )
 
 // mockGRPCStream implements both StreamSender and StreamReceiver in-memory

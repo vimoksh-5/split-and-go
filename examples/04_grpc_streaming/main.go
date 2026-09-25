@@ -14,9 +14,9 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 
-	"github.com/vimoksh/split-and-go"
-	splitGrpc "github.com/vimoksh/split-and-go/pkg/transport/grpc"
-	"github.com/vimoksh/split-and-go/pkg/transport/grpc/pb"
+	"github.com/vimoksh-5/split-and-go"
+	splitGrpc "github.com/vimoksh-5/split-and-go/pkg/transport/grpc"
+	"github.com/vimoksh-5/split-and-go/pkg/transport/grpc/pb"
 )
 
 const bufSize = 1024 * 1024

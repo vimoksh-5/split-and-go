@@ -5,10 +5,10 @@ import (
 	"errors"
 	"io"
 
-	"github.com/vimoksh/split-and-go/pkg/assembler"
-	"github.com/vimoksh/split-and-go/pkg/core"
-	"github.com/vimoksh/split-and-go/pkg/splitter"
-	"github.com/vimoksh/split-and-go/pkg/transport/grpc/pb"
+	"github.com/vimoksh-5/split-and-go/pkg/assembler"
+	"github.com/vimoksh-5/split-and-go/pkg/core"
+	"github.com/vimoksh-5/split-and-go/pkg/splitter"
+	"github.com/vimoksh-5/split-and-go/pkg/transport/grpc/pb"
 )
 
 // StreamSender sends protobuf ChunkEnvelopes over a gRPC stream.

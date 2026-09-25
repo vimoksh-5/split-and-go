@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vimoksh/split-and-go/pkg/assembler"
-	"github.com/vimoksh/split-and-go/pkg/compression"
-	"github.com/vimoksh/split-and-go/pkg/core"
-	"github.com/vimoksh/split-and-go/pkg/splitter"
+	"github.com/vimoksh-5/split-and-go/pkg/assembler"
+	"github.com/vimoksh-5/split-and-go/pkg/compression"
+	"github.com/vimoksh-5/split-and-go/pkg/core"
+	"github.com/vimoksh-5/split-and-go/pkg/splitter"
 )
 
 func TestAssemblerInOrder(t *testing.T) {

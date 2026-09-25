@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	splitHttp "github.com/vimoksh/split-and-go/pkg/transport/http"
-	"github.com/vimoksh/split-and-go/pkg/splitter"
+	splitHttp "github.com/vimoksh-5/split-and-go/pkg/transport/http"
+	"github.com/vimoksh-5/split-and-go/pkg/splitter"
 )
 
 func TestHTTPStreamUploadRoundtrip(t *testing.T) {

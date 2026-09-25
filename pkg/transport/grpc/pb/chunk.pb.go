@@ -389,7 +389,7 @@ const file_splitandgo_v1_chunk_proto_rawDesc = "" +
 	"\fStreamUpload\x12\x1c.splitandgo.v1.ChunkEnvelope\x1a\x18.splitandgo.v1.StreamAck(\x01\x12V\n" +
 	"\x0eStreamDownload\x12$.splitandgo.v1.StreamDownloadRequest\x1a\x1c.splitandgo.v1.ChunkEnvelope0\x01\x12L\n" +
 	"\n" +
-	"StreamBidi\x12\x1c.splitandgo.v1.ChunkEnvelope\x1a\x1c.splitandgo.v1.ChunkEnvelope(\x010\x01B:Z8github.com/vimoksh/split-and-go/pkg/transport/grpc/pb;pbb\x06proto3"
+	"StreamBidi\x12\x1c.splitandgo.v1.ChunkEnvelope\x1a\x1c.splitandgo.v1.ChunkEnvelope(\x010\x01B<Z:github.com/vimoksh-5/split-and-go/pkg/transport/grpc/pb;pbb\x06proto3"
 
 var (
 	file_splitandgo_v1_chunk_proto_rawDescOnce sync.Once

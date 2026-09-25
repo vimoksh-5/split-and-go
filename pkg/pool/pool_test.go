@@ -3,7 +3,7 @@ package pool_test
 import (
 	"testing"
 
-	"github.com/vimoksh/split-and-go/pkg/pool"
+	"github.com/vimoksh-5/split-and-go/pkg/pool"
 )
 
 func TestTieredPoolGetAndPut(t *testing.T) {

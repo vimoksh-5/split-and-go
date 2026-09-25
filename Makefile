@@ -18,8 +18,8 @@ proto:
 	@which protoc > /dev/null || (echo "protoc not found. Please install protoc." && exit 1)
 	export PATH=$$PATH:$$(go env GOPATH)/bin && \
 	protoc --proto_path=proto \
-		--go_out=pkg/transport/grpc/pb --go_opt=module=github.com/vimoksh/split-and-go/pkg/transport/grpc/pb \
-		--go-grpc_out=pkg/transport/grpc/pb --go-grpc_opt=module=github.com/vimoksh/split-and-go/pkg/transport/grpc/pb \
+		--go_out=pkg/transport/grpc/pb --go_opt=module=github.com/vimoksh-5/split-and-go/pkg/transport/grpc/pb \
+		--go-grpc_out=pkg/transport/grpc/pb --go-grpc_opt=module=github.com/vimoksh-5/split-and-go/pkg/transport/grpc/pb \
 		proto/splitandgo/v1/chunk.proto
 
 examples:

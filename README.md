@@ -1,6 +1,6 @@
 # ⚡ Split-and-Go (`split-and-go`)
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/vimoksh/split-and-go.svg)](https://pkg.go.dev/github.com/vimoksh/split-and-go)
+[![Go Reference](https://pkg.go.dev/badge/github.com/vimoksh-5/split-and-go.svg)](https://pkg.go.dev/github.com/vimoksh-5/split-and-go)
 [![Go Version](https://img.shields.io/badge/go-1.21%2B-blue.svg)](https://golang.org)
 [![Build & Test](https://img.shields.io/badge/tests-passing-brightgreen.svg)]()
 [![Race Detector](https://img.shields.io/badge/race%20detector-clean-brightgreen.svg)]()
@@ -70,7 +70,7 @@ Benchmarked on Apple Silicon (M2 Pro) with Go 1.26:
 ## 📦 Installation
 
 ```bash
-go get github.com/vimoksh/split-and-go
+go get github.com/vimoksh-5/split-and-go
 ```
 
 ---
@@ -87,7 +87,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/vimoksh/split-and-go"
+	"github.com/vimoksh-5/split-and-go"
 )
 
 func main() {
@@ -202,7 +202,7 @@ message ChunkEnvelope {
 
 #### gRPC Client Stream Sender
 ```go
-import splitGrpc "github.com/vimoksh/split-and-go/pkg/transport/grpc"
+import splitGrpc "github.com/vimoksh-5/split-and-go/pkg/transport/grpc"
 
 stream, _ := grpcClient.StreamUpload(ctx)
 
@@ -284,6 +284,14 @@ make bench
 # Execute all 5 real-world runnable examples
 make examples
 ```
+
+---
+
+## 👤 Author & Maintainer
+
+Maintained with ❤️ by **[Vimoksh](https://github.com/vimoksh-5)**  
+- GitHub: [@vimoksh-5](https://github.com/vimoksh-5)
+- Repository: [github.com/vimoksh-5/split-and-go](https://github.com/vimoksh-5/split-and-go)
 
 ---
 

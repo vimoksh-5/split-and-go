@@ -6,8 +6,8 @@ import (
 	"log"
 	"strings"
 
-	"github.com/vimoksh/split-and-go"
-	"github.com/vimoksh/split-and-go/pkg/core"
+	"github.com/vimoksh-5/split-and-go"
+	"github.com/vimoksh-5/split-and-go/pkg/core"
 )
 
 func main() {

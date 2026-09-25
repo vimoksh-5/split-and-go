@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/vimoksh/split-and-go/pkg/compression"
+	"github.com/vimoksh-5/split-and-go/pkg/compression"
 )
 
 func TestGzipCompressionRoundtrip(t *testing.T) {

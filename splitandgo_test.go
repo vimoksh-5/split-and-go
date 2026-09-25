@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/vimoksh/split-and-go"
+	"github.com/vimoksh-5/split-and-go"
 )
 
 func TestRootFacadeStreaming(t *testing.T) {

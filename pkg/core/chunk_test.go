@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/vimoksh/split-and-go/pkg/core"
+	"github.com/vimoksh-5/split-and-go/pkg/core"
 )
 
 func TestChunkBinaryRoundtrip(t *testing.T) {

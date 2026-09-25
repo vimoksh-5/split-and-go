@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vimoksh/split-and-go/pkg/record"
+	"github.com/vimoksh-5/split-and-go/pkg/record"
 )
 
 type UserEvent struct {

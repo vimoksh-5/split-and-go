@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vimoksh/split-and-go/pkg/retry"
+	"github.com/vimoksh-5/split-and-go/pkg/retry"
 )
 
 func TestRetrySuccessOnFirstAttempt(t *testing.T) {

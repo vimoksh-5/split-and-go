@@ -8,10 +8,10 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/vimoksh/split-and-go/pkg/assembler"
-	"github.com/vimoksh/split-and-go/pkg/checksum"
-	"github.com/vimoksh/split-and-go/pkg/core"
-	"github.com/vimoksh/split-and-go/pkg/metrics"
+	"github.com/vimoksh-5/split-and-go/pkg/assembler"
+	"github.com/vimoksh-5/split-and-go/pkg/checksum"
+	"github.com/vimoksh-5/split-and-go/pkg/core"
+	"github.com/vimoksh-5/split-and-go/pkg/metrics"
 )
 
 // Format defines serialization format for structured records.
