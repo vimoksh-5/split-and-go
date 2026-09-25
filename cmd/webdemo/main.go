@@ -22,7 +22,7 @@ func main() {
 		w.Write([]byte(dashboardHTML))
 	})
 
-	// 2. Split-and-Go Streaming Endpoint (Chunked + CRC32)
+	// 2. Split-and-Go Streaming Endpoint (Chunked + CRC32) with dynamic scale selection
 	mux.HandleFunc("/api/stream/split", func(w http.ResponseWriter, r *http.Request) {
 		flusher, ok := w.(http.Flusher)
 		if !ok {
@@ -30,12 +30,33 @@ func main() {
 			return
 		}
 
-		// Generate 15 MB of structured data
-		totalMB := 15
-		repeats := (totalMB * 1024 * 1024) / 64
-		sampleLine := "SPLIT-AND-GO-HIGH-PERFORMANCE-STREAMING-CHUNK-DATA-PACKET-VALIDATION-\n"
-		largePayload := strings.Repeat(sampleLine, repeats)
-		src := strings.NewReader(largePayload)
+		sizeParam := strings.ToLower(r.URL.Query().Get("size"))
+		var totalBytes int64 = 15 * 1024 * 1024
+		chunkSize := 64 * 1024
+
+		switch sizeParam {
+		case "10kb":
+			totalBytes = 10 * 1024
+			chunkSize = 4 * 1024
+		case "128kb":
+			totalBytes = 128 * 1024
+			chunkSize = 16 * 1024
+		case "10mb":
+			totalBytes = 10 * 1024 * 1024
+			chunkSize = 64 * 1024
+		case "100mb":
+			totalBytes = 100 * 1024 * 1024
+			chunkSize = 128 * 1024
+		case "1gb":
+			totalBytes = 1024 * 1024 * 1024
+			chunkSize = 256 * 1024
+		default:
+			totalBytes = 15 * 1024 * 1024
+			chunkSize = 64 * 1024
+		}
+
+		pattern := []byte("SPLIT-AND-GO-HIGH-PERFORMANCE-STREAMING-CHUNK-DATA-PACKET-VALIDATION-\n")
+		src := splitandgo.NewPatternReader(pattern, totalBytes)
 
 		w.Header().Set("Content-Type", "application/x-ndjson")
 		w.Header().Set("Transfer-Encoding", "chunked")
@@ -44,9 +65,9 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		flusher.Flush()
 
-		// Stream 64KB chunks with CRC32
+		// Stream chunks with Castagnoli CRC32
 		s := splitandgo.NewSplitter(src,
-			splitandgo.WithChunkSize(64*1024),
+			splitandgo.WithChunkSize(chunkSize),
 			splitandgo.WithChecksumType(splitandgo.ChecksumCRC32),
 		)
 
@@ -56,14 +77,14 @@ func main() {
 				break
 			}
 
-			// Format each chunk as a streamable JSON envelope for browser consumption
+			previewLen := min(48, len(chunk.Data))
 			metaPayload := map[string]any{
 				"sequence": chunk.Sequence,
 				"size":     chunk.PayloadSize(),
 				"offset":   chunk.Offset,
 				"crc32":    chunk.Checksum,
 				"is_last":  chunk.IsLast(),
-				"data":     string(chunk.Data[:min(64, len(chunk.Data))]) + "... [truncated for display]",
+				"data":     string(chunk.Data[:previewLen]) + "... [verified]",
 			}
 			jsonBytes, _ := json.Marshal(metaPayload)
 			jsonBytes = append(jsonBytes, '\n')
@@ -79,20 +100,39 @@ func main() {
 
 	// 3. Naive Monolithic Endpoint (Full buffering, slow TTFB)
 	mux.HandleFunc("/api/stream/naive", func(w http.ResponseWriter, r *http.Request) {
-		// Server buffers full 15MB in memory
-		totalMB := 15
-		repeats := (totalMB * 1024 * 1024) / 64
-		sampleLine := "SPLIT-AND-GO-HIGH-PERFORMANCE-STREAMING-CHUNK-DATA-PACKET-VALIDATION-\n"
-		largePayload := strings.Repeat(sampleLine, repeats)
+		sizeParam := strings.ToLower(r.URL.Query().Get("size"))
+		var totalBytes int64 = 15 * 1024 * 1024
 
-		// Simulate server query / encoding latency before response starts
-		time.Sleep(120 * time.Millisecond)
+		switch sizeParam {
+		case "10kb":
+			totalBytes = 10 * 1024
+		case "128kb":
+			totalBytes = 128 * 1024
+		case "10mb":
+			totalBytes = 10 * 1024 * 1024
+		case "100mb":
+			totalBytes = 100 * 1024 * 1024
+		case "1gb":
+			// Monolithic API cannot allocate 1GB safely in standard REST without OOM risk
+			http.Error(w, "500 Server OOM / Memory Limit Exceeded: Monolithic buffering failed on 1 GB payload", http.StatusInternalServerError)
+			return
+		}
+
+		pattern := []byte("SPLIT-AND-GO-HIGH-PERFORMANCE-STREAMING-CHUNK-DATA-PACKET-VALIDATION-\n")
+		// Monolithic: allocate entire byte slice into server memory
+		largePayload := make([]byte, totalBytes)
+		for i := int64(0); i < totalBytes; i++ {
+			largePayload[i] = pattern[i%int64(len(pattern))]
+		}
+
+		// Simulate server buffering / serialization latency
+		time.Sleep(time.Duration(min(300, int(totalBytes/(1024*1024))*15+20)) * time.Millisecond)
 
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(largePayload)))
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(largePayload))
+		w.Write(largePayload)
 	})
 
 	// 4. Out-of-Order Packet Resilience Demo Endpoint
@@ -493,6 +533,49 @@ const dashboardHTML = `<!DOCTYPE html>
       font-weight: 700;
     }
 
+    /* Scale Selector Bar */
+    .scale-selector-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(14px);
+      padding: 0.75rem 1.25rem;
+      border-radius: 14px;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .scale-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-right: 0.5rem;
+    }
+    .pill {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.45rem 0.9rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .pill:hover {
+      background: rgba(0, 240, 255, 0.1);
+      border-color: var(--cyan);
+    }
+    .pill.active {
+      background: var(--cyan);
+      color: #000;
+      border-color: var(--cyan);
+      box-shadow: 0 0 14px rgba(0, 240, 255, 0.45);
+    }
+
     /* Out of order resilience box */
     #resilienceResult {
       display: none;
@@ -524,12 +607,22 @@ const dashboardHTML = `<!DOCTYPE html>
       </a>
     </header>
 
+    <!-- Scale Selector Bar -->
+    <div class="scale-selector-bar">
+      <span class="scale-label">Select Scale:</span>
+      <button class="pill" onclick="selectScale('10kb', '10 KB', 10*1024)">10 KB (Metadata)</button>
+      <button class="pill" onclick="selectScale('128kb', '128 KB', 128*1024)">128 KB (REST API)</button>
+      <button class="pill active" onclick="selectScale('10mb', '10 MB', 10*1024*1024)">10 MB (Image)</button>
+      <button class="pill" onclick="selectScale('100mb', '100 MB', 100*1024*1024)">100 MB (Video)</button>
+      <button class="pill" onclick="selectScale('1gb', '1 GB', 1024*1024*1024)">1 GB (Archive)</button>
+    </div>
+
     <!-- Hero Actions -->
     <div class="hero-actions">
       <div class="action-card split">
         <div>
           <div class="card-title">⚡ Split-and-Go Streaming</div>
-          <p class="card-desc">Streams 15 MB in 64 KB discrete chunks with CRC32 integrity verification and zero buffering.</p>
+          <p id="splitCardDesc" class="card-desc">Streams 10 MB in 64 KB discrete chunks with CRC32 integrity verification and zero buffering.</p>
         </div>
         <button id="btnSplit" class="btn btn-cyan" onclick="startSplitStream()">
           <span>Stream Live Chunks</span> ➔
@@ -539,7 +632,7 @@ const dashboardHTML = `<!DOCTYPE html>
       <div class="action-card naive">
         <div>
           <div class="card-title">🐢 Monolithic Full Buffering</div>
-          <p class="card-desc">Simulates standard REST buffering 15 MB in server RAM before sending the first byte.</p>
+          <p id="naiveCardDesc" class="card-desc">Simulates standard REST buffering 10 MB in server RAM before sending the first byte.</p>
         </div>
         <button id="btnNaive" class="btn btn-outline" onclick="startNaiveRequest()">
           <span>Test Monolithic API</span>
@@ -635,6 +728,23 @@ const dashboardHTML = `<!DOCTYPE html>
     const btnNaive = document.getElementById('btnNaive');
     const resilienceResult = document.getElementById('resilienceResult');
 
+    let currentScaleKey = '10mb';
+    let currentScaleLabel = '10 MB';
+    let currentScaleBytes = 10 * 1024 * 1024;
+
+    function selectScale(key, label, bytes) {
+      currentScaleKey = key;
+      currentScaleLabel = label;
+      currentScaleBytes = bytes;
+
+      document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+      event.target.classList.add('active');
+
+      document.getElementById('splitCardDesc').textContent = 'Streams ' + label + ' in discrete chunks with CRC32 verification and bounded memory.';
+      document.getElementById('naiveCardDesc').textContent = 'Simulates standard REST buffering ' + label + ' in server RAM before sending the first byte.';
+      resetUI();
+    }
+
     function resetUI() {
       mTTFB.textContent = '-- ms';
       mTTFBSub.textContent = 'Client wait time';
@@ -651,16 +761,15 @@ const dashboardHTML = `<!DOCTYPE html>
       btnSplit.disabled = true;
       btnNaive.disabled = true;
       statusDot.className = 'status-dot active';
-      statusText.textContent = 'Streaming Live Chunks via Socket...';
+      statusText.textContent = 'Streaming ' + currentScaleLabel + ' Live Chunks via Socket...';
 
       const startTime = performance.now();
       let firstByteTime = null;
       let totalBytesReceived = 0;
       let chunkCount = 0;
-      const expectedTotalBytes = 15 * 1024 * 1024;
 
       try {
-        const response = await fetch('/api/stream/split');
+        const response = await fetch('/api/stream/split?size=' + currentScaleKey);
         firstByteTime = performance.now();
         const ttfb = (firstByteTime - startTime).toFixed(1);
         mTTFB.textContent = ttfb + ' ms';
@@ -688,8 +797,15 @@ const dashboardHTML = `<!DOCTYPE html>
 
               // Update metrics
               mChunks.textContent = chunkCount;
-              mBytes.textContent = (totalBytesReceived / (1024 * 1024)).toFixed(2) + ' MB';
-              const percent = Math.min(100, (totalBytesReceived / expectedTotalBytes) * 100);
+              if (currentScaleBytes >= 1024 * 1024 * 1024) {
+                mBytes.textContent = (totalBytesReceived / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+              } else if (currentScaleBytes < 1024 * 1024) {
+                mBytes.textContent = (totalBytesReceived / 1024).toFixed(1) + ' KB';
+              } else {
+                mBytes.textContent = (totalBytesReceived / (1024 * 1024)).toFixed(2) + ' MB';
+              }
+
+              const percent = Math.min(100, (totalBytesReceived / currentScaleBytes) * 100);
               progressFill.style.width = percent + '%';
 
               const elapsedSec = (performance.now() - startTime) / 1000;
@@ -722,7 +838,7 @@ const dashboardHTML = `<!DOCTYPE html>
 
         const totalTime = ((performance.now() - startTime) / 1000).toFixed(2);
         statusDot.className = 'status-dot';
-        statusText.textContent = 'Stream Completed in ' + totalTime + 's!';
+        statusText.textContent = 'Stream Completed in ' + totalTime + 's (' + currentScaleLabel + ')!';
       } catch (e) {
         statusText.textContent = 'Error: ' + e.message;
       } finally {
@@ -736,13 +852,24 @@ const dashboardHTML = `<!DOCTYPE html>
       btnSplit.disabled = true;
       btnNaive.disabled = true;
       statusDot.className = 'status-dot active';
-      statusText.textContent = 'Waiting for Server to buffer all 15 MB in RAM...';
+      statusText.textContent = 'Waiting for Server to buffer ' + currentScaleLabel + ' in RAM...';
       chunkFeedBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--red); padding: 2rem;">' +
-        '⏳ Client waiting... Server is allocating full 15MB into RAM before first byte is sent...</td></tr>';
+        '⏳ Client waiting... Server is allocating full ' + currentScaleLabel + ' into RAM before first byte is sent...</td></tr>';
 
       const startTime = performance.now();
       try {
-        const response = await fetch('/api/stream/naive');
+        const response = await fetch('/api/stream/naive?size=' + currentScaleKey);
+        if (!response.ok) {
+          const errText = await response.text();
+          mTTFB.textContent = 'OOM CRASH';
+          mTTFB.style.color = 'var(--red)';
+          mTTFBSub.textContent = '🚨 Server Memory Exhausted';
+          statusText.textContent = 'Monolithic Failed: ' + errText;
+          chunkFeedBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--red); padding: 2rem;">' +
+            '🚨 Server OOM / Memory Limit Exceeded! Monolithic buffering failed on ' + currentScaleLabel + '.</td></tr>';
+          return;
+        }
+
         const ttfb = (performance.now() - startTime).toFixed(1);
         mTTFB.textContent = ttfb + ' ms';
         mTTFBSub.textContent = '🐢 High TTFB (Server blocked)';

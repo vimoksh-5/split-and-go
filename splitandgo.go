@@ -120,3 +120,8 @@ func NewGzipCompressor(level ...int) compression.Compressor {
 func NewMemoryMetrics() *metrics.MemoryCollector {
 	return metrics.NewMemoryCollector()
 }
+
+// NewPatternReader creates a virtual stream reader for generating MB to GB payloads with 0 RAM.
+func NewPatternReader(pattern []byte, total int64) *core.PatternReader {
+	return core.NewPatternReader(pattern, total)
+}
