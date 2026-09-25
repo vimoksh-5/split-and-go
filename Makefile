@@ -17,6 +17,9 @@ bench:
 compare:
 	go run cmd/bench/main.go
 
+demo:
+	go run cmd/webdemo/main.go
+
 proto:
 	@which protoc > /dev/null || (echo "protoc not found. Please install protoc." && exit 1)
 	export PATH=$$PATH:$$(go env GOPATH)/bin && \
