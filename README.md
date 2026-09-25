@@ -14,7 +14,7 @@
 
 ## 🚀 The Problem in Large-Scale Systems & MNCs
 
-In modern microservice architectures, APIs frequently exchange large payloads—such as multi-megabyte JSON responses, large database query exports, machine learning model weights, parquet logs, or media blobs:
+In modern microservice architectures, APIs frequently exchange large payloads-such as multi-megabyte JSON responses, large database query exports, machine learning model weights, parquet logs, or media blobs:
 
 ```
 ❌ Traditional Monolithic API (High Latency & OOM Risk)

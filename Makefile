@@ -14,6 +14,9 @@ test-race:
 bench:
 	go test -bench=. -benchmem ./...
 
+compare:
+	go run cmd/bench/main.go
+
 proto:
 	@which protoc > /dev/null || (echo "protoc not found. Please install protoc." && exit 1)
 	export PATH=$$PATH:$$(go env GOPATH)/bin && \
