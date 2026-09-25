@@ -44,7 +44,7 @@ func getMemStats() runtime.MemStats {
 	return m
 }
 
-// parseSize parses human-friendly strings like "10mb", "50mb", "1gb", "5gb" or raw numbers like "2000000000".
+// parseSize parses human-friendly strings like "10mb", "50mb", "1gb", "4gb", "5gb" or raw numbers like "2000000000".
 func parseSize(s string) (int64, error) {
 	s = strings.TrimSpace(strings.ToLower(s))
 	if s == "" {
@@ -85,10 +85,22 @@ func main() {
 	fmt.Printf("%s%s   DYNAMIC REAL-WORLD DATA STREAMING: MONOLITHIC vs SPLIT-AND-GO        %s\n", colorBold, colorYellow, colorReset)
 	fmt.Printf("%s%s========================================================================%s\n\n", colorBold, colorCyan, colorReset)
 
-	// CLI argument parsing
+	// CLI argument parsing: separate flags and positional arguments
+	var positionalArgs []string
+	skipMonolithic := false
+
+	for _, a := range os.Args[1:] {
+		low := strings.ToLower(a)
+		if low == "--skip-monolithic" || low == "--skip-traditional" || low == "--skip" || low == "-skip" || low == "-s" {
+			skipMonolithic = true
+		} else {
+			positionalArgs = append(positionalArgs, a)
+		}
+	}
+
 	arg := "20mb"
-	if len(os.Args) > 1 {
-		arg = os.Args[1]
+	if len(positionalArgs) > 0 {
+		arg = positionalArgs[0]
 	}
 
 	var targetURL string
@@ -131,26 +143,26 @@ func main() {
 			targetURL = arg
 		}
 	} else {
-		// Parsed as size argument (e.g. 10mb, 50mb, 100mb, 1gb, 2000000000)
+		// Parsed as size argument (e.g. 10mb, 50mb, 100mb, 1gb, 4gb, 2000000000)
 		parsedBytes, err := parseSize(arg)
 		if err != nil {
 			fmt.Printf("%sInvalid size argument %q: %v%s\n\n", colorRed, arg, err, colorReset)
 			fmt.Println("Usage:")
-			fmt.Println("  go run examples/06_public_api_real_world/main.go [size or URL]")
+			fmt.Println("  go run examples/06_public_api_real_world/main.go [size or URL] [--skip-monolithic]")
 			fmt.Println("Examples:")
-			fmt.Println("  go run examples/06_public_api_real_world/main.go 20mb     # Live Cloudflare CDN")
-			fmt.Println("  go run examples/06_public_api_real_world/main.go 50mb     # Live Cloudflare CDN (max)")
-			fmt.Println("  go run examples/06_public_api_real_world/main.go 100mb    # Dynamic streaming server")
-			fmt.Println("  go run examples/06_public_api_real_world/main.go 1gb      # 1 GB scale test")
-			fmt.Println("  go run examples/06_public_api_real_world/main.go 5gb      # 5 GB scale test")
-			fmt.Println("  go run examples/06_public_api_real_world/main.go <URL>    # Any custom URL")
+			fmt.Println("  go run examples/06_public_api_real_world/main.go 20mb               # Live Cloudflare CDN")
+			fmt.Println("  go run examples/06_public_api_real_world/main.go 50mb               # Live Cloudflare CDN (max)")
+			fmt.Println("  go run examples/06_public_api_real_world/main.go 100mb              # Dynamic streaming server")
+			fmt.Println("  go run examples/06_public_api_real_world/main.go 4gb                # 4 GB scale test (both)")
+			fmt.Println("  go run examples/06_public_api_real_world/main.go 4gb --skip-monolithic # Skip monolithic")
+			fmt.Println("  go run examples/06_public_api_real_world/main.go <URL>              # Any custom URL")
 			return
 		}
 		totalBytes = parsedBytes
 
 		// Public edge endpoints like Cloudflare cap anonymous single requests at 50 MB to prevent DDoS.
 		// For <= 50MB, fetch directly from Cloudflare's live global edge network.
-		// For > 50MB (e.g. 100MB, 1GB, 5GB), spin up a live high-throughput streaming server.
+		// For > 50MB (e.g. 100MB, 1GB, 4GB, 5GB), spin up a live high-throughput streaming server.
 		if totalBytes <= 50*1024*1024 {
 			targetURL = fmt.Sprintf("https://speed.cloudflare.com/__down?bytes=%d", totalBytes)
 			isCloudflare = true
@@ -192,9 +204,13 @@ func main() {
 	var naiveHeap uint64
 	var naiveDuration time.Duration
 	var downloadedBytesNaive uint64
-	canRunMonolithic := totalBytes <= 500*1024*1024 // Skip monolithic if > 500MB to avoid crashing with OOM
 
-	if canRunMonolithic {
+	if !skipMonolithic {
+		if totalBytes >= 1024*1024*1024 {
+			fmt.Printf("   %sBuffering %s into RAM via io.ReadAll (pass --skip-monolithic if you want to bypass)...%s\n",
+				colorYellow, formatBytes(uint64(totalBytes)), colorReset)
+		}
+
 		runtime.GC()
 		memBeforeNaive := getMemStats()
 		startNaive := time.Now()
@@ -237,8 +253,7 @@ func main() {
 		runtime.GC()
 		time.Sleep(200 * time.Millisecond)
 	} else {
-		fmt.Printf("   %sSkipped Monolithic Test%s: Buffering %s into RAM would risk Out-Of-Memory (OOM) panic!\n\n",
-			colorRed, colorReset, formatBytes(uint64(totalBytes)))
+		fmt.Printf("   %sSkipped Monolithic Test%s (via --skip-monolithic flag)\n\n", colorYellow, colorReset)
 	}
 
 	// -------------------------------------------------------------
@@ -331,7 +346,7 @@ func main() {
 	fmt.Printf("%s%s+-----------------------------------+-------------------------+-------------------------+%s\n", colorBold, colorCyan, colorReset)
 	fmt.Printf("| Total Payload Streamed            | %-23s | %-23s |\n", formatBytes(uint64(totalStreamBytes)), formatBytes(uint64(totalStreamBytes)))
 
-	if canRunMonolithic {
+	if !skipMonolithic {
 		fmt.Printf("| %sTime-To-First-Processable-Data%s   | %s%-23v%s | %s%-23v%s |\n",
 			colorBold, colorReset,
 			colorRed, naiveDuration, colorReset,
@@ -343,11 +358,11 @@ func main() {
 	} else {
 		fmt.Printf("| %sTime-To-First-Processable-Data%s   | %s%-23s%s | %s%-23v%s |\n",
 			colorBold, colorReset,
-			colorRed, "BLOCKED / CRASHED", colorReset,
+			colorYellow, "SKIPPED (--skip)", colorReset,
 			colorGreen, timeToFirstChunk, colorReset)
 		fmt.Printf("| %sPeak Heap RAM Consumption%s       | %s%-23s%s | %s%-23s%s |\n",
 			colorBold, colorReset,
-			colorRed, "FATAL OOM CRASH", colorReset,
+			colorYellow, "SKIPPED (--skip)", colorReset,
 			colorGreen, formatBytes(splitHeap), colorReset)
 	}
 
@@ -356,7 +371,7 @@ func main() {
 	fmt.Printf("%s%s+-----------------------------------+-------------------------+-------------------------+%s\n\n", colorBold, colorCyan, colorReset)
 
 	fmt.Printf("%s%sWHY THIS IS A GAME-CHANGER:%s\n", colorBold, colorYellow, colorReset)
-	if canRunMonolithic {
+	if !skipMonolithic {
 		speedup := float64(naiveDuration) / float64(timeToFirstChunk)
 		if speedup > 1 {
 			fmt.Printf("1. %sImmediate Processing%s: Your app started processing data %s%.1fx faster%s (%v vs %v)!\n",
@@ -365,11 +380,11 @@ func main() {
 			fmt.Printf("1. %sImmediate Processing%s: Your app started processing data in %s%v%s instead of waiting %s%v%s!\n",
 				colorGreen, colorReset, colorBold, timeToFirstChunk, colorReset, colorRed, naiveDuration, colorReset)
 		}
-		fmt.Printf("2. %sZero OOM Risk%s: Memory stayed bounded at %s%s%s while monolithic buffer took %s%s%s in RAM.\n",
+		fmt.Printf("2. %sZero OOM Risk%s: Memory stayed bounded at %s%s%s while monolithic buffer consumed %s%s%s in RAM.\n",
 			colorGreen, colorReset, colorGreen, formatBytes(splitHeap), colorReset, colorRed, formatBytes(naiveHeap), colorReset)
 	} else {
-		fmt.Printf("1. %sGigabyte Scale Streaming%s: Streamed %s smoothly with only %s RAM while monolithic crashes.\n",
-			colorGreen, colorReset, formatBytes(uint64(totalStreamBytes)), formatBytes(splitHeap))
+		fmt.Printf("1. %sGigabyte Scale Streaming%s: Streamed %s smoothly at %.2f MB/s with only %s RAM.\n",
+			colorGreen, colorReset, formatBytes(uint64(totalStreamBytes)), throughputMBps, formatBytes(splitHeap))
 	}
 	fmt.Printf("3. %sHardware Integrity%s: All %d chunks were verified with hardware Castagnoli CRC32.\n\n",
 		colorGreen, colorReset, chunkCount)
