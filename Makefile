@@ -17,6 +17,9 @@ bench:
 compare:
 	go run cmd/bench/main.go
 
+disk:
+	go run examples/06_public_api_real_world/main.go 1gb --disk
+
 demo:
 	go run cmd/webdemo/main.go
 
