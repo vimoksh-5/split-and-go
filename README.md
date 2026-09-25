@@ -105,6 +105,8 @@ go get github.com/vimoksh-5/split-and-go
 
 ## 💡 Quick Start Guides
 
+> 📖 **Production Framework Recipes**: For step-by-step guides on wiring Split-and-Go into **Gin, Chi, Echo, standard net/http, or gRPC** for database streaming and large file transfers, see the **[API Integration Guide](docs/INTEGRATION_GUIDE.md)**.
+
 ### 1. Basic Byte Stream Chunking & Reassembly
 
 ```go
