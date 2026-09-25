@@ -5,7 +5,7 @@
 [![Build & Test](https://img.shields.io/badge/tests-passing-brightgreen.svg)]()
 [![Race Detector](https://img.shields.io/badge/race%20detector-clean-brightgreen.svg)]()
 [![TTFB](https://img.shields.io/badge/TTFB-584%C2%B5s%20(10.9x%20faster)-brightgreen.svg)]()
-[![RAM Impact](https://img.shields.io/badge/RAM%20reduction-46x%20less%20memory-blue.svg)]()
+[![RAM Impact](https://img.shields.io/badge/RAM%20reduction-5900x%20less%20memory-blue.svg)]()
 [![Throughput](https://img.shields.io/badge/throughput-1.38%2B%20GB%2Fs-orange.svg)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
@@ -16,7 +16,7 @@
 
 ## 🚀 The Problem in Large-Scale Systems & MNCs
 
-In modern microservice architectures, APIs frequently exchange large payloads-such as multi-megabyte JSON responses, large database query exports, machine learning model weights, parquet logs, or media blobs:
+In modern microservice architectures, APIs frequently exchange large payloads—such as multi-megabyte JSON responses, large database query exports, machine learning model weights, parquet logs, or media blobs:
 
 ```
 ❌ Traditional Monolithic API (High Latency & OOM Risk)
@@ -50,6 +50,8 @@ Client ◄─── [Chunk 0] ─── [Chunk 1] ─── [Chunk 2] ─── 
 - **Production Transports**:
   - **HTTP/REST Adapter (`pkg/transport/http`)**: Streaming POST, `Transfer-Encoding: chunked` response flusher, binary framing, and SSE compatibility.
   - **gRPC Adapter (`pkg/transport/grpc`)**: Full Protobuf contract (`chunk.proto`) with client-streaming, server-streaming, and bidirectional streaming wrappers.
+- **Physical SSD Disk Persistence**:
+  - Stream directly from network sockets to disk with concurrent `fsync` flushing—zero RAM accumulation and instant time-to-first-byte on disk.
 - **Built-in Resilience (`pkg/retry` & `pkg/metrics`)**:
   - Full jitter exponential backoff retry policies, OpenTelemetry/Prometheus-ready metrics hooks, and real-time progress callbacks.
 - **100% Data Race Free**:
@@ -76,7 +78,52 @@ Tested on real HTTP network sockets with live per-chunk Castagnoli CRC32 verific
 
 > **Architectural Breakthrough**: In traditional monolithic APIs, transferring 1 GB to 10 GB causes instant process death from Out-Of-Memory (OOM) errors. Split-and-Go uses a tiered `sync.Pool` buffer-recycling pipeline, keeping RAM usage **strictly flat under 4.5 MB** whether streaming a **10 KB metadata ping** or a **10 GIGABYTE data warehouse export**, all with sub-millisecond TTFB!
 
-### 2. In-Memory Micro-Benchmarks
+---
+
+### 2. Real-World Public Internet CDN Streaming (Cloudflare Edge)
+Benchmarked against **Cloudflare's live global edge network** (`speed.cloudflare.com`) over a real Internet connection (`go run examples/06_public_api_real_world/main.go 20mb`):
+
+| Streaming Performance Metric | Traditional Monolithic (`io.ReadAll`) | Split-and-Go Streaming | Impact |
+| :--- | :--- | :--- | :--- |
+| **Payload Streamed** | 20.00 MB | 20.00 MB | Real WAN Internet Payload |
+| **Time-To-First-Processable-Data** | 4.484 s | **65.766 ms** | **⚡ 68.2x Faster App Response** |
+| **Peak Heap RAM Consumption** | 47.92 MB | **713.83 KB** | **67x Less Memory** |
+| **Data Integrity Verification** | None (raw stream) | Castagnoli CRC32 / chunk | Bit-level corruption safety |
+| **Bounded Memory Safety** | ❌ No (RAM scales with payload) | ✅ Yes (Flat constant reuse) | Zero OOM Risk |
+
+---
+
+### 3. High-Scale 4 GB Benchmark: RAM Doubling vs Constant Memory
+Benchmarked with 4.00 GB of live data (`go run examples/06_public_api_real_world/main.go 4gb`):
+
+| Streaming Performance Metric | Traditional Monolithic (`io.ReadAll`) | Split-and-Go Streaming | Impact |
+| :--- | :--- | :--- | :--- |
+| **Payload Streamed** | 4.00 GB | 4.00 GB | High-Scale Workload |
+| **Time-To-First-Processable-Data** | 7.007 s | **3.913 ms** | **⚡ 1790.5x Faster Startup** |
+| **Peak Heap RAM Consumption** | 9.27 GB *(Slice capacity doubling)* | **1.82 MB** *(Flat pooled buffers)* | **5093x Less RAM** |
+| **Streaming Throughput** | 570.83 MB/s | **962.03 MB/s** | **+68% Higher Throughput** |
+| **Chunk Verification** | None | 16,384 chunks verified (CRC32) | Hardware-accelerated |
+
+> **Why did `io.ReadAll` consume 9.27 GB for a 4.00 GB file?**  
+> Go's `io.ReadAll` dynamically doubles slice capacity as bytes stream in ($2\text{ GB} \to 4\text{ GB} \to 8\text{ GB}+$ allocations). Split-and-Go reuses the same pooled $256\text{ KB}$ buffers, keeping RAM flat at **$1.82\text{ MB}$**!
+
+---
+
+### 4. Physical SSD Disk Persistence Benchmark (Zero-Memory File Ingestion)
+Benchmarked streaming 4.00 GB directly from socket to physical SSD storage with `fsync` (`make disk` or `go run examples/06_public_api_real_world/main.go 4gb --disk`):
+
+| SSD Disk Persistence Metric | Traditional Monolithic (RAM $\to$ Disk) | Split-and-Go (Pipelined Socket $\to$ Disk) | Impact |
+| :--- | :--- | :--- | :--- |
+| **Persistence Architecture** | RAM Buffer $\to$ Serial Disk Sync | Pipelined Socket $\to$ SSD File | Direct streaming |
+| **Time-To-First-Byte-On-Disk** | 6.993 s *(Disk idle during download)* | **3.799 ms** *(Instant disk write)* | **⚡ 1840.8x Sooner** |
+| **Total End-to-End Duration** | 9.373 s *(Download + Disk write)* | **5.105 s** *(Pipelined concurrency)* | **Nearly 2x Faster** |
+| **Peak Heap RAM Consumption** | 9.27 GB | **1.56 MB** | **5944x Less Memory** |
+| **End-to-End Throughput** | 436.99 MB/s | **802.24 MB/s** | **+83% Faster Disk Ingestion** |
+| **Data Integrity Verification** | None | 16,384 chunks verified (CRC32) | Verified before disk write |
+
+---
+
+### 5. In-Memory Micro-Benchmarks
 Measured using `go test -bench=. -benchmem`:
 
 | Benchmark | Workload | Sustained Rate | Allocations / Speed |
@@ -85,7 +132,9 @@ Measured using `go test -bench=. -benchmem`:
 | **`BenchmarkRecordStreaming`** | 10,000 Structured Structs | **642,000+ records/sec** | Micro-batched NDJSON |
 | **`TieredPool.Get / Put`** | 64 KB Memory Buffer Allocation | **27.2 ns/op** | 1 allocation / op |
 
-### 3. Interactive Web Streaming Dashboard
+---
+
+### 6. Interactive Web Streaming Dashboard
 Split-and-Go includes a live browser dashboard to visually test streaming chunks in real time:
 
 ```bash
@@ -182,7 +231,39 @@ err := client.ReadStreamResponse(ctx, resp, &localFile, splitandgo.WithVerifyChe
 
 ---
 
-### 3. Structured Record Streaming (NDJSON Micro-batching)
+### 3. Direct-to-Disk Pipelined Persistence (Zero RAM File Ingestion)
+
+Save multi-gigabyte uploads or downloads directly to disk with constant flat memory:
+
+```go
+file, err := os.Create("incoming_archive.tar.gz")
+if err != nil {
+    log.Fatal(err)
+}
+defer file.Close()
+
+// Assembler flushes directly to SSD as chunks arrive from the network:
+asm := splitandgo.NewAssembler(file, splitandgo.WithVerifyChecksums(true))
+
+s := splitandgo.NewSplitter(resp.Body,
+    splitandgo.WithChunkSize(256*1024),
+    splitandgo.WithChecksumType(splitandgo.ChecksumCRC32),
+)
+
+for {
+    chunk, err := s.Next()
+    if err != nil { break }
+    if err := asm.WriteChunk(chunk); err != nil {
+        log.Fatalf("Checksum failure on chunk #%d: %v", chunk.Sequence, err)
+    }
+    if chunk.IsLast() { break }
+}
+file.Sync() // Flushed to physical disk with ~1.8 MB peak RAM!
+```
+
+---
+
+### 4. Structured Record Streaming (NDJSON Micro-batching)
 
 Prevent Out-Of-Memory (OOM) errors when querying hundreds of thousands of database rows:
 
@@ -213,7 +294,7 @@ for item := range itemCh {
 
 ---
 
-### 4. gRPC Streaming with Protobuf Contracts
+### 5. gRPC Streaming with Protobuf Contracts
 
 Split-and-Go provides a native Protobuf specification (`proto/splitandgo/v1/chunk.proto`):
 
@@ -253,7 +334,7 @@ func (s *server) StreamUpload(stream pb.StreamService_StreamUploadServer) error 
 
 ---
 
-### 5. Out-of-Order Sliding Window Resilience
+### 6. Out-of-Order Sliding Window Resilience
 
 If network packets arrive scrambled across concurrent routes (e.g. `[2, 0, 3, 1]`):
 
@@ -291,34 +372,60 @@ split-and-go/
 │       └── grpc/                # gRPC streaming adapters & Protobuf stubs
 ├── proto/
 │   └── splitandgo/v1/           # Protobuf definitions (chunk.proto)
-├── examples/                    # 5 production-ready executable examples
-└── Makefile                     # Build, test, test-race, bench targets
+├── examples/                    # 6 production-ready executable examples
+│   ├── 01_byte_streaming/       # Raw binary streaming & reassembly
+│   ├── 02_http_chunked_server/  # HTTP Transfer-Encoding: chunked & SSE
+│   ├── 03_record_streaming/     # Generics [T] NDJSON micro-batching
+│   ├── 04_grpc_streaming/       # gRPC Protobuf streaming adapters
+│   ├── 05_out_of_order_resilience/ # Sliding-window network reordering
+│   └── 06_public_api_real_world/   # Real-world dynamic scale & SSD disk benchmark
+└── Makefile                     # Build, test, test-race, bench, compare, disk targets
 ```
 
 ---
 
-## 🧪 Testing & Verification
+## 🧪 Complete Testing & Benchmark Commands
 
-Run the full test suite including race condition detection:
+### 1. Makefile Targets
+
+| Command | Description | What It Measures |
+| :--- | :--- | :--- |
+| `make test` | Runs the full unit test suite | Verifies framing, chunking, checksums, and reassembly correctness |
+| `make test-race` | Runs tests under the Go Race Detector | Guarantees **0 data races** across concurrent goroutines |
+| `make bench` | Executes memory and throughput microbenchmarks | Nanoseconds per allocation (`27.2 ns/op`) and sustained rates |
+| `make compare` | Runs the 10 KB to 10 GB multi-tier scale matrix | Side-by-side terminal comparison of Monolithic vs Split-and-Go |
+| `make disk` | Runs the 1 GB physical SSD persistence benchmark | Disk write throughput, time-to-first-byte on disk, and peak RAM |
+| `make demo` | Launches the interactive browser dashboard | Live HTTP chunk visualizer on `http://localhost:8090` |
+| `make examples` | Runs all 6 real-world runnable examples | Validates all production example recipes end-to-end |
+
+---
+
+### 2. Dynamic Scale & Real-World CLI Commands
+
+Run the dynamic real-world benchmark with any size, flag, or custom URL:
 
 ```bash
-# Run unit tests
-make test
+# 1. Live Public Internet WAN Test (Cloudflare Edge CDN)
+go run examples/06_public_api_real_world/main.go 20mb
+go run examples/06_public_api_real_world/main.go 50mb
 
-# Run race detector (0 data races guaranteed)
-make test-race
+# 2. In-Memory High-Scale Benchmarks (Runs both Monolithic and Split-and-Go)
+go run examples/06_public_api_real_world/main.go 100mb
+go run examples/06_public_api_real_world/main.go 1gb
+go run examples/06_public_api_real_world/main.go 4gb
+go run examples/06_public_api_real_world/main.go 2000000000  # Raw bytes accepted
 
-# Run micro-benchmarks
-make bench
+# 3. Physical SSD Disk Persistence Benchmark (--disk flag)
+go run examples/06_public_api_real_world/main.go 1gb --disk
+go run examples/06_public_api_real_world/main.go 4gb --disk
 
-# Run side-by-side terminal comparative benchmark (vs monolithic API)
-make compare
+# 4. Stream-Only Mode (Bypass monolithic buffering on massive scales)
+go run examples/06_public_api_real_world/main.go 4gb --skip-monolithic
+go run examples/06_public_api_real_world/main.go 10gb --skip-monolithic
 
-# Launch live browser chunk streaming dashboard (http://localhost:8090)
-make demo
-
-# Execute all 5 real-world runnable examples
-make examples
+# 5. Benchmark against any Custom API or Video URL
+go run examples/06_public_api_real_world/main.go https://speed.cloudflare.com/__down?bytes=25000000
+go run examples/06_public_api_real_world/main.go https://your-server.com/large-archive.bin
 ```
 
 ---
