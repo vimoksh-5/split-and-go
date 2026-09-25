@@ -39,6 +39,8 @@ examples:
 	go run examples/04_grpc_streaming/main.go
 	@echo "\nRunning Example 5: Out of Order Resilience..."
 	go run examples/05_out_of_order_resilience/main.go
+	@echo "\nRunning Example 6: Real-World Public Internet Stream..."
+	go run examples/06_public_api_real_world/main.go
 
 tidy:
 	go mod tidy
