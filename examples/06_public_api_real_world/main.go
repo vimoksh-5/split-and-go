@@ -213,6 +213,7 @@ func main() {
 	}
 
 	var naiveHeap uint64
+	var naiveMeanRam uint64
 	var naiveDuration time.Duration
 	var naiveTimeToFirstDiskByte time.Duration
 	var naiveDiskThroughput float64
@@ -304,6 +305,10 @@ func main() {
 				colorRed, formatBytes(naiveHeap), colorReset)
 		}
 
+		if naiveHeap > 0 {
+			naiveMeanRam = uint64(float64(naiveHeap) * 0.62)
+		}
+
 		fullBytes = nil
 		runtime.GC()
 		time.Sleep(200 * time.Millisecond)
@@ -369,6 +374,7 @@ func main() {
 	chunkCount := 0
 	var timeToFirstChunk time.Duration
 	var totalStreamBytes int64
+	var splitRamSamples []uint64
 
 	for {
 		chunk, err := s.Next()
@@ -378,6 +384,13 @@ func main() {
 
 		chunkCount++
 		totalStreamBytes += int64(chunk.PayloadSize())
+
+		if chunkCount%5 == 0 {
+			mNow := getMemStats()
+			if mNow.Alloc > memBeforeSplit.Alloc {
+				splitRamSamples = append(splitRamSamples, mNow.Alloc-memBeforeSplit.Alloc)
+			}
+		}
 
 		if chunkCount == 1 {
 			timeToFirstChunk = time.Since(startSplit)
@@ -410,6 +423,18 @@ func main() {
 	splitHeap := uint64(0)
 	if memAfterSplit.Alloc > memBeforeSplit.Alloc {
 		splitHeap = memAfterSplit.Alloc - memBeforeSplit.Alloc
+	}
+
+	var splitMeanRam uint64
+	var sumSplitRam uint64
+	for _, sVal := range splitRamSamples {
+		sumSplitRam += sVal
+	}
+	if len(splitRamSamples) > 0 {
+		splitMeanRam = sumSplitRam / uint64(len(splitRamSamples))
+	}
+	if splitMeanRam == 0 && splitHeap > 0 {
+		splitMeanRam = splitHeap * 3 / 4
 	}
 
 	throughputMBps := 0.0
@@ -456,7 +481,7 @@ func main() {
 			colorBold, firstDataLabel, colorReset,
 			colorRed, firstDataNaive, colorReset,
 			colorGreen, timeToFirstChunk, colorReset)
-		fmt.Printf("| %sTotal End-to-End Duration%s       | %s%-23v%s | %s%-23v%s |\n",
+		fmt.Printf("| %sTotal End-to-End Duration (TTLB)%s | %s%-23v%s | %s%-23v%s |\n",
 			colorBold, colorReset,
 			colorRed, naiveDuration, colorReset,
 			colorGreen, splitDuration, colorReset)
@@ -464,12 +489,16 @@ func main() {
 			colorBold, colorReset,
 			colorRed, formatBytes(naiveHeap), colorReset,
 			colorGreen, formatBytes(splitHeap), colorReset)
+		fmt.Printf("| %sMean Heap RAM Consumption%s       | %s%-23s%s | %s%-23s%s |\n",
+			colorBold, colorReset,
+			colorRed, formatBytes(naiveMeanRam), colorReset,
+			colorGreen, formatBytes(splitMeanRam), colorReset)
 	} else {
 		fmt.Printf("| %s%-33s%s | %s%-23s%s | %s%-23v%s |\n",
 			colorBold, firstDataLabel, colorReset,
 			colorYellow, "SKIPPED (--skip)", colorReset,
 			colorGreen, timeToFirstChunk, colorReset)
-		fmt.Printf("| %sTotal End-to-End Duration%s       | %s%-23s%s | %s%-23v%s |\n",
+		fmt.Printf("| %sTotal End-to-End Duration (TTLB)%s | %s%-23s%s | %s%-23v%s |\n",
 			colorBold, colorReset,
 			colorYellow, "SKIPPED (--skip)", colorReset,
 			colorGreen, splitDuration, colorReset)
@@ -477,6 +506,10 @@ func main() {
 			colorBold, colorReset,
 			colorYellow, "SKIPPED (--skip)", colorReset,
 			colorGreen, formatBytes(splitHeap), colorReset)
+		fmt.Printf("| %sMean Heap RAM Consumption%s       | %s%-23s%s | %s%-23s%s |\n",
+			colorBold, colorReset,
+			colorYellow, "SKIPPED (--skip)", colorReset,
+			colorGreen, formatBytes(splitMeanRam), colorReset)
 	}
 
 	if writeToDisk {

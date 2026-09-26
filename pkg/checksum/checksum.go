@@ -35,6 +35,16 @@ func NewCRC32IEEE() *CRC32Hasher {
 	return &CRC32Hasher{table: crc32.IEEETable}
 }
 
+// CRC32 calculates the Castagnoli CRC32 of a byte slice.
+func CRC32(data []byte) uint32 {
+	return crc32.Checksum(data, castagnoliTable)
+}
+
+// NewCRC32Hash returns an incremental hash.Hash32 using the Castagnoli table.
+func NewCRC32Hash() hash.Hash32 {
+	return crc32.New(castagnoliTable)
+}
+
 func (h *CRC32Hasher) Type() core.ChecksumType {
 	return core.ChecksumCRC32
 }

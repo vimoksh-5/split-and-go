@@ -3,17 +3,22 @@
 //
 // Key Features:
 //   - Zero-overhead streaming: Process multi-gigabyte files or millions of structured records with bounded RAM.
+//   - Dual-Mode: Raw HTTP chunked streaming (any browser/curl) AND Framed binary streaming (enterprise microservices).
 //   - Tiered buffer pooling: Minimizes GC pressure under extreme concurrent load.
 //   - Checksum integrity: Automatic hardware-accelerated CRC32 or SHA256 verification per chunk.
 //   - Sliding window reassembly: Seamlessly handles out-of-order chunk arrivals.
-//   - Dual-mode streaming: Arbitrary raw byte streams (files, blobs, proto) & typed record micro-batching (JSON/NDJSON).
 //   - Transports: Native adapters for HTTP (chunked transfer, SSE, binary frames) and gRPC streaming.
-//   - Resilience: Exponential backoff with jitter and telemetry metrics hooks.
+//   - Direct-to-Disk Persistence: Overlapped socket streaming directly to NVMe SSDs with zero RAM bloat.
 package splitandgo
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/vimoksh-5/split-and-go/pkg/assembler"
 	"github.com/vimoksh-5/split-and-go/pkg/checksum"
@@ -24,6 +29,7 @@ import (
 	"github.com/vimoksh-5/split-and-go/pkg/record"
 	"github.com/vimoksh-5/split-and-go/pkg/retry"
 	"github.com/vimoksh-5/split-and-go/pkg/splitter"
+	splitHttp "github.com/vimoksh-5/split-and-go/pkg/transport/http"
 )
 
 // Type aliases for seamless root package access
@@ -37,6 +43,7 @@ type (
 	RetryPolicy  = retry.Policy
 	Compressor   = compression.Compressor
 	Collector    = metrics.Collector
+	RawOption    = splitHttp.RawOption
 )
 
 // Checksum constants
@@ -73,6 +80,14 @@ var (
 	WithVerifyChecksums   = assembler.WithVerifyChecksums
 	WithMaxReorderBuffer  = assembler.WithMaxReorderBuffer
 	WithDecompressor      = assembler.WithDecompressor
+)
+
+// Raw Stream Option aliases
+var (
+	WithRawChunkSize     = splitHttp.WithRawChunkSize
+	WithRawContentType   = splitHttp.WithRawContentType
+	WithRawPool          = splitHttp.WithRawPool
+	WithRawMaxUploadSize = splitHttp.WithRawMaxUploadSize
 )
 
 // Default instances
@@ -124,4 +139,79 @@ func NewMemoryMetrics() *metrics.MemoryCollector {
 // NewPatternReader creates a virtual stream reader for generating MB to GB payloads with 0 RAM.
 func NewPatternReader(pattern []byte, total int64) *core.PatternReader {
 	return core.NewPatternReader(pattern, total)
+}
+
+// ============================================================================
+// Plug-and-Play High-Level Facade Helpers (Raw & Framed Modes)
+// ============================================================================
+
+// ServeRawStream streams raw bytes directly from src to an http.ResponseWriter using
+// standard Transfer-Encoding: chunked, tiered sync.Pool buffers, automatic socket flushing,
+// and hardware Castagnoli CRC32 computed in HTTP trailers.
+// Compatible with all standard browsers, curl, <video>, and fetch().
+func ServeRawStream(w http.ResponseWriter, r *http.Request, src io.Reader, opts ...splitHttp.RawOption) (int64, uint32, error) {
+	return splitHttp.StreamRawResponse(w, r, src, opts...)
+}
+
+// ServeRawFile streams a file on disk directly to an http.ResponseWriter with zero RAM accumulation.
+func ServeRawFile(w http.ResponseWriter, r *http.Request, filePath string, opts ...splitHttp.RawOption) (int64, uint32, error) {
+	return splitHttp.StreamRawFile(w, r, filePath, opts...)
+}
+
+// ReceiveRaw streams an incoming HTTP upload body directly to an io.Writer with constant RAM.
+func ReceiveRaw(r *http.Request, dst io.Writer, opts ...splitHttp.RawOption) (int64, uint32, error) {
+	return splitHttp.ReceiveRawRequest(r, dst, opts...)
+}
+
+// ReceiveRawToFile streams an incoming HTTP upload directly to destPath on disk with constant flat RAM.
+func ReceiveRawToFile(r *http.Request, destPath string, opts ...splitHttp.RawOption) (int64, uint32, error) {
+	return splitHttp.ReceiveRawToFile(r, destPath, opts...)
+}
+
+// ServeFramedStream streams src using Split-and-Go binary envelope framing (0x534701).
+// Best for microservice-to-microservice high-throughput pipelines.
+func ServeFramedStream(w http.ResponseWriter, r *http.Request, src io.Reader, opts ...splitter.Option) error {
+	return splitHttp.StreamResponse(w, r, src, opts...)
+}
+
+// ReceiveFramedRequest receives a framed Split-and-Go request body into dst.
+func ReceiveFramedRequest(w http.ResponseWriter, r *http.Request, dst io.Writer, opts ...assembler.Option) error {
+	return splitHttp.ReceiveRequest(w, r, dst, opts...)
+}
+
+// FileServerHandler creates a drop-in http.Handler that streams files from rootDir at line-rate.
+// Seamlessly compatible with standard net/http, Gin, Chi, Echo, and Fiber.
+func FileServerHandler(rootDir string, opts ...splitHttp.RawOption) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cleanPath := filepath.Clean(r.URL.Path)
+		filePath := filepath.Join(rootDir, cleanPath)
+		info, err := os.Stat(filePath)
+		if err != nil || info.IsDir() {
+			http.NotFound(w, r)
+			return
+		}
+		_, _, _ = splitHttp.StreamRawFile(w, r, filePath, opts...)
+	})
+}
+
+// UploadHandler creates a drop-in http.Handler that streams incoming uploads directly to destDir on disk.
+func UploadHandler(destDir string, opts ...splitHttp.RawOption) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost && r.Method != http.MethodPut {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		filename := r.URL.Query().Get("filename")
+		if filename == "" {
+			filename = fmt.Sprintf("upload_%d.bin", time.Now().UnixNano())
+		}
+		destPath := filepath.Join(destDir, filepath.Base(filename))
+		written, crc, err := splitHttp.ReceiveRawToFile(r, destPath, opts...)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"status":"success","bytes":%d,"crc32":"0x%08X","path":%q}`, written, crc, destPath)
+	})
 }
